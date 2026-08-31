@@ -13,6 +13,7 @@ from intent_extractor import (  # noqa: E402
     LoRAExtractor,
     MockCortexClient,
     MockLoRAClient,
+    SnowparkCortexClient,
     _build_connection_params,
     _build_cortex_client,
     _build_lora_client,
@@ -190,3 +191,49 @@ def test_lora_extractor_defaults_and_clamps_a_malformed_client_response():
     assert signal.intent_score == 1.0
     assert signal.sentiment == "neutral"
     assert signal.urgency_flag is False
+
+
+class _FakeSnowparkSession:
+    """Records the last SQL text + bind params passed to .sql(), standing
+    in for a real Snowpark session -- no live account or the optional
+    snowpark dependency needed to test bind-parameter shape."""
+
+    def __init__(self, row: dict):
+        self._row = row
+        self.query = None
+        self.params = None
+
+    def sql(self, query, params=None):
+        self.query = query
+        self.params = params
+        return self
+
+    def collect(self):
+        return [self._row]
+
+
+def test_snowpark_client_classify_text_binds_categories_as_individual_scalars():
+    # A raw Python list passed as one bind value is read by the Snowflake
+    # connector as an executemany batch-size signal, which collides with
+    # `text`'s scalar binding ("batch size of 1 ... not the same as
+    # previous size of N") -- verified against the live account. Each
+    # category must be its own bind param, reassembled via ARRAY_CONSTRUCT.
+    session = _FakeSnowparkSession({"LABEL": "urgent"})
+    client = SnowparkCortexClient(session)
+
+    result = client.classify_text("this is urgent", ["urgent", "not urgent"])
+
+    assert result == "urgent"
+    assert session.params == ["this is urgent", "urgent", "not urgent"]
+    assert "ARRAY_CONSTRUCT(?, ?)" in session.query
+
+
+def test_snowpark_client_sentiment_and_complete_bind_scalars_directly():
+    session = _FakeSnowparkSession({"SCORE": 0.5, "RESPONSE": "0.5"})
+    client = SnowparkCortexClient(session)
+
+    assert client.sentiment("hello") == 0.5
+    assert session.params == ["hello"]
+
+    assert client.complete("llama3.1-8b", "rate this") == "0.5"
+    assert session.params == ["llama3.1-8b", "rate this"]

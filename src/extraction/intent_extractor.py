@@ -89,9 +89,16 @@ class SnowparkCortexClient(CortexClient):
         return str(row["RESPONSE"])
 
     def classify_text(self, text: str, categories: list) -> str:
+        # categories is bound as individual scalars, not as a single list
+        # value -- the Snowflake connector reads a list/tuple *inside*
+        # params as an executemany batch-size signal, which collides with
+        # text's scalar binding ("batch size of 1 ... not the same as
+        # previous size of N"). ARRAY_CONSTRUCT reassembles them into the
+        # array CLASSIFY_TEXT expects, still fully parameterized.
+        placeholders = ", ".join(["?"] * len(categories))
         row = self.session.sql(
-            "SELECT SNOWFLAKE.CORTEX.CLASSIFY_TEXT(?, ?) AS label",
-            params=[text, categories],
+            f"SELECT SNOWFLAKE.CORTEX.CLASSIFY_TEXT(?, ARRAY_CONSTRUCT({placeholders})) AS label",
+            params=[text, *categories],
         ).collect()[0]
         return str(row["LABEL"])
 
