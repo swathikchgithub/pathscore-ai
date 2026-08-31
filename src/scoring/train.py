@@ -8,7 +8,10 @@ for every use case": one pipeline, N config files, not N codebases.
 
 Usage:
   python src/scoring/train.py --config src/config/contact_score.yaml \
-      --data data/synthetic/contacts.csv --out models/contact_score
+      --out models/contact_score
+
+  --data defaults to data/features/<use_case>.csv (the output of
+  build_features.py); pass it explicitly to train on something else.
 """
 
 import argparse
@@ -127,7 +130,13 @@ def train(config_path: str, data_path: str, out_dir: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
-    parser.add_argument("--data", required=True)
+    parser.add_argument("--data", default=None, help="Defaults to data/features/<use_case>.csv")
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
-    train(args.config, args.data, args.out)
+
+    data_path = args.data
+    if data_path is None:
+        use_case = load_config(args.config)["use_case"]
+        data_path = f"data/features/{use_case}.csv"
+
+    train(args.config, data_path, args.out)

@@ -50,6 +50,35 @@ INDUSTRY_FIT_WEIGHT = {
 FUNNEL_STAGES = ["MQL", "SQL", "Opportunity", "Closed-Won"]
 FUNNEL_CUTPOINTS = [0.35, 0.55, 0.75]
 
+# Short synthetic email/call snippets per intent_label, standing in for the
+# raw text a real extraction layer would see. Vocabulary is deliberately
+# aligned with MockCortexClient's word lists (src/extraction/intent_extractor.py)
+# so build_features.py's extraction step can actually recover signal from it
+# in local/dev mode. Picked deterministically by event_id, not rng, so this
+# doesn't perturb the rng stream that drives label generation below.
+EVENT_NOTES = {
+    "hot": [
+        "This is exactly what we need -- ready to sign this week, can you send a contract asap?",
+        "Loved the demo, very excited to move forward -- what's the urgent next step?",
+        "Yes, let's do this. Please send pricing today, we need this asap.",
+    ],
+    "warm": [
+        "Interested in learning more, the demo looked great. Can we set up a follow-up?",
+        "This seems like a good fit, keen to see a proposal when you have time.",
+        "Thanks for the info, I'm interested -- let me loop in our team and get back to you.",
+    ],
+    "neutral": [
+        "Thanks for reaching out, will take a look and get back to you.",
+        "Received your message, still gathering requirements internally.",
+        "Noted -- we're not actively evaluating vendors right now but will keep this on file.",
+    ],
+    "cold": [
+        "Not interested, please remove me from this list.",
+        "We have no budget for this right now, please stop reaching out.",
+        "Please unsubscribe me, this isn't relevant to us.",
+    ],
+}
+
 
 def gen_accounts(n_accounts: int) -> pd.DataFrame:
     rows = []
@@ -101,8 +130,12 @@ def gen_contacts(accounts: pd.DataFrame, n_contacts: int) -> pd.DataFrame:
 
 
 def gen_events(contacts: pd.DataFrame, avg_events_per_contact: float = 4.0) -> pd.DataFrame:
-    """Synthetic email/engagement events with an intent label, standing in for
-    what an LLM/Cortex sentiment+intent extractor would produce from real text."""
+    """Synthetic email/engagement events with an intent label and a short
+    notes snippet consistent with it. intent_label is the ground truth used
+    to build the conversion labels below; notes is the raw text a real
+    extraction layer would see -- build_features.py recovers an intent score
+    from notes independently, so features never get to see the ground truth
+    directly."""
     intents = ["cold", "neutral", "warm", "hot"]
     rows = []
     event_id = 0
@@ -115,13 +148,21 @@ def gen_events(contacts: pd.DataFrame, avg_events_per_contact: float = 4.0) -> p
         probs = np.clip(probs, 0.01, None)
         probs = probs / probs.sum()
         for _ in range(n_events):
-            rows.append({
+            # Built as a variable (not passed inline to append) so "notes"
+            # can be filled in afterward from the already-drawn intent_label
+            # without adding another rng call -- that would shift every rng
+            # draw after it and quietly change the downstream labels below.
+            row = {
                 "event_id": f"EVT-{event_id:08d}",
                 "contact_id": c["contact_id"],
                 "event_type": rng.choice(["email_open", "email_reply", "meeting", "content_download"]),
                 "intent_label": rng.choice(intents, p=probs),
+                "notes": None,
                 "days_ago": int(rng.exponential(20)),
-            })
+            }
+            templates = EVENT_NOTES[row["intent_label"]]
+            row["notes"] = templates[event_id % len(templates)]
+            rows.append(row)
             event_id += 1
     return pd.DataFrame(rows)
 
