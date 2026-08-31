@@ -14,7 +14,7 @@ Feature Extraction
   - Snowflake Cortex (SENTIMENT, EXTRACT_ANSWER, COMPLETE) -- default for text
   - Custom LLM + LoRA adapter -- only when Cortex is too generic
         |
-Feature Store (Postgres/Supabase, point-in-time correct)
+Feature Store (data/features/*.csv, built by build_features.py)
         |
 Core Scoring Model (LightGBM, one training pipeline, per-use-case config)
         |
@@ -24,6 +24,19 @@ Serving (FastAPI) + Monitoring + Scheduled retrain
         |
 Dashboard (Next.js) -- ranked scores, SHAP explanations
 ```
+
+**On "feature store":** what's actually implemented is `build_features.py` writing a
+flat CSV snapshot per use case to `data/features/`, refreshed by
+`src/monitoring/run_scheduled_jobs.py` on the cadence in `.github/workflows/retrain.yml`.
+That's not the point-in-time-correct store the diagram above originally implied
+(retrieving feature values as they existed *at label time*, not their current
+value) -- this repo's synthetic data has no time-varying dimension to make that
+meaningful, and a real one would need a versioned store (Postgres/Supabase table
+keyed by entity + as-of timestamp) that's out of scope for a demo. The practical
+substitute doing that job here is `leakage_checks.py`'s heuristics (denylisted
+post-outcome column patterns, suspiciously perfect label correlation), which
+catch the specific failure mode -- a feature that couldn't have existed yet at
+label time -- that a point-in-time store exists to prevent architecturally.
 
 ## Why these choices
 
@@ -44,16 +57,21 @@ Dashboard (Next.js) -- ranked scores, SHAP explanations
 ```
 data/
   synthetic/        synthetic data generator output
-  features/         computed feature tables (parquet/csv for local dev)
+  features/         feature snapshots per use case, built by build_features.py
 src/
   config/           per-use-case YAML label + feature definitions
-  extraction/        text feature extraction (Cortex client + LoRA client)
-  scoring/           LightGBM training + inference, shared across use cases
-  calibration/       Platt scaling / isotonic calibration
-  serving/           FastAPI app exposing /score
+  extraction/       text feature extraction (Cortex client + LoRA client)
+  scoring/          build_features.py + LightGBM training/inference, shared across use cases
+  serving/          FastAPI app exposing /score
+  monitoring/       drift_check.py + run_scheduled_jobs.py (retrain/drift-check cadence)
 notebooks/           exploration / synthetic data QA
-tests/               unit tests for leakage checks, calibration, scoring
+tests/               unit + integration tests for every module above
+.github/workflows/   scheduled retrain + drift-check (see run_scheduled_jobs.py)
 ```
+
+Calibration (Platt scaling / isotonic) is inline in `train.py`'s `train()`, not a
+separate module -- it's a few lines wrapping the fitted model, not enough to
+justify its own package.
 
 ## Quickstart
 
