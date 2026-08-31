@@ -90,6 +90,40 @@ export default function Home() {
         )}
       </header>
 
+      <details className="how-it-works" open>
+        <summary>How does scoring work?</summary>
+        <ol>
+          <li>
+            <strong>Score</strong> — a LightGBM model trained on this use case&apos;s historical
+            outcomes (e.g. which contacts actually converted) outputs a probability for each
+            entity, calibrated so a &ldquo;70%&rdquo; score reflects real-world odds, not a raw
+            model guess.
+          </li>
+          <li>
+            <strong>Rank</strong> — every entity in the sample is scored the same way, then sorted
+            highest to lowest. There&apos;s no separate ranking step or model — rank 1 is simply
+            whoever scored highest.
+          </li>
+          <li>
+            <strong>Predicted class</strong> — the model estimates a probability for every possible
+            outcome (see &ldquo;Class probabilities&rdquo; when you select a row); &ldquo;Predicted&rdquo;
+            is whichever one is most likely, not just &ldquo;above 50%&rdquo; — that distinction
+            matters most for multi-class use cases like Funnel Stage.
+          </li>
+          <li>
+            <strong>Top factors</strong> — every prediction ships with the specific features that
+            drove that individual score (SHAP values), not a generic importance ranking — what
+            actually mattered for this one entity.
+          </li>
+        </ol>
+        <p>
+          Labels come from real historical outcomes, not editorial guesses, and an automated check
+          blocks any feature that&apos;s secretly a stand-in for the outcome itself before a model
+          is ever trained (see leakage_checks.py). This demo runs on synthetic GTM data standing in
+          for a real warehouse — see docs/ below for the full technical design.
+        </p>
+      </details>
+
       {error && <div className="error">{error}</div>}
       {loading && <div className="loading">Loading...</div>}
 

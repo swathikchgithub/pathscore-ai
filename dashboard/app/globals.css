@@ -81,6 +81,64 @@ body {
   margin: 0 0 10px;
 }
 
+.how-it-works {
+  margin: 20px 0 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 20px;
+  max-width: 72ch;
+}
+
+.how-it-works summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 15px;
+  list-style: none;
+}
+
+.how-it-works summary::-webkit-details-marker {
+  display: none;
+}
+
+.how-it-works summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 14px;
+  color: var(--accent);
+}
+
+.how-it-works[open] summary::before {
+  content: "▾";
+}
+
+.how-it-works ol {
+  margin: 14px 0 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.how-it-works li {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.how-it-works li strong {
+  color: var(--text);
+}
+
+.how-it-works > p {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}
+
 .error {
   background: #3a1a1a;
   color: #f2a9a1;
