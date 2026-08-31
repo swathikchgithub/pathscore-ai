@@ -130,14 +130,17 @@ class MockCortexClient(CortexClient):
         return next((c for c in categories if "not" in c.lower() or "urgent" not in c.lower()), categories[-1])
 
 
-def _build_cortex_client() -> CortexClient:
-    """Factory: real Snowpark session if SNOWFLAKE_* env vars are set,
-    otherwise a local mock. An environment/config decision, not a code
-    branch callers of CortexExtractor need to know about."""
-    missing = [v for v in REQUIRED_SNOWFLAKE_ENV_VARS if not os.getenv(v)]
-    if missing:
-        return MockCortexClient()
+def _build_connection_params() -> dict:
+    """Pure config assembly -- kept separate from actually opening a session
+    so credential selection is testable without a live account or the
+    optional snowpark dependency installed.
 
+    Key-pair takes priority over password: password auth on this project's
+    account hit Snowflake's platform-wide MFA-for-password requirement,
+    which a headless CI job can't satisfy, while key-pair auth is exempt
+    (it's already strong, non-interactive auth) -- see ADR-0006. Password
+    stays supported for accounts that don't enforce MFA.
+    """
     connection_params = {
         "account": os.environ["SNOWFLAKE_ACCOUNT"],
         "user": os.environ["SNOWFLAKE_USER"],
@@ -148,15 +151,38 @@ def _build_cortex_client() -> CortexClient:
     if os.getenv("SNOWFLAKE_ROLE"):
         connection_params["role"] = os.environ["SNOWFLAKE_ROLE"]
 
-    if os.getenv("SNOWFLAKE_PASSWORD"):
-        connection_params["password"] = os.environ["SNOWFLAKE_PASSWORD"]
+    if os.getenv("SNOWFLAKE_PRIVATE_KEY"):
+        from cryptography.hazmat.primitives import serialization
+
+        private_key = serialization.load_pem_private_key(
+            os.environ["SNOWFLAKE_PRIVATE_KEY"].encode(), password=None
+        )
+        connection_params["private_key"] = private_key.private_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
     elif os.getenv("SNOWFLAKE_PRIVATE_KEY_PATH"):
         connection_params["private_key_file"] = os.environ["SNOWFLAKE_PRIVATE_KEY_PATH"]
+    elif os.getenv("SNOWFLAKE_PASSWORD"):
+        connection_params["password"] = os.environ["SNOWFLAKE_PASSWORD"]
     else:
         raise RuntimeError(
-            "SNOWFLAKE_PASSWORD or SNOWFLAKE_PRIVATE_KEY_PATH is required "
-            "when SNOWFLAKE_ACCOUNT/USER/WAREHOUSE/DATABASE/SCHEMA are set."
+            "SNOWFLAKE_PRIVATE_KEY, SNOWFLAKE_PRIVATE_KEY_PATH, or SNOWFLAKE_PASSWORD "
+            "is required when SNOWFLAKE_ACCOUNT/USER/WAREHOUSE/DATABASE/SCHEMA are set."
         )
+    return connection_params
+
+
+def _build_cortex_client() -> CortexClient:
+    """Factory: real Snowpark session if SNOWFLAKE_* env vars are set,
+    otherwise a local mock. An environment/config decision, not a code
+    branch callers of CortexExtractor need to know about."""
+    missing = [v for v in REQUIRED_SNOWFLAKE_ENV_VARS if not os.getenv(v)]
+    if missing:
+        return MockCortexClient()
+
+    connection_params = _build_connection_params()
 
     from snowflake.snowpark import Session  # optional dependency, only needed for live mode
 

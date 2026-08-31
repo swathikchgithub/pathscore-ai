@@ -13,16 +13,19 @@ from intent_extractor import (  # noqa: E402
     LoRAExtractor,
     MockCortexClient,
     MockLoRAClient,
+    _build_connection_params,
     _build_cortex_client,
     _build_lora_client,
     _parse_intent_score,
     get_extractor,
 )
 
+_SNOWFLAKE_SECRET_VARS = ["SNOWFLAKE_PASSWORD", "SNOWFLAKE_PRIVATE_KEY", "SNOWFLAKE_PRIVATE_KEY_PATH"]
+
 
 @pytest.fixture(autouse=True)
 def clear_snowflake_env(monkeypatch):
-    for var in REQUIRED_SNOWFLAKE_ENV_VARS + ["SNOWFLAKE_PASSWORD", "SNOWFLAKE_PRIVATE_KEY_PATH"]:
+    for var in REQUIRED_SNOWFLAKE_ENV_VARS + _SNOWFLAKE_SECRET_VARS:
         monkeypatch.delenv(var, raising=False)
 
 
@@ -39,8 +42,64 @@ def test_mock_client_used_when_snowflake_env_vars_absent():
 def test_live_client_requires_password_or_key(monkeypatch):
     for var in REQUIRED_SNOWFLAKE_ENV_VARS:
         monkeypatch.setenv(var, "placeholder")
-    with pytest.raises(RuntimeError, match="SNOWFLAKE_PASSWORD"):
+    with pytest.raises(RuntimeError, match="SNOWFLAKE_PRIVATE_KEY, SNOWFLAKE_PRIVATE_KEY_PATH, or SNOWFLAKE_PASSWORD"):
         _build_cortex_client()
+
+
+def _set_required_snowflake_env(monkeypatch):
+    for var in REQUIRED_SNOWFLAKE_ENV_VARS:
+        monkeypatch.setenv(var, "placeholder")
+
+
+def test_connection_params_use_password_when_only_password_is_set(monkeypatch):
+    _set_required_snowflake_env(monkeypatch)
+    monkeypatch.setenv("SNOWFLAKE_PASSWORD", "hunter2")
+
+    params = _build_connection_params()
+
+    assert params["password"] == "hunter2"
+    assert "private_key" not in params
+    assert "private_key_file" not in params
+
+
+def test_connection_params_use_private_key_file_when_set(monkeypatch):
+    _set_required_snowflake_env(monkeypatch)
+    monkeypatch.setenv("SNOWFLAKE_PRIVATE_KEY_PATH", "/run/secrets/snowflake_key.p8")
+
+    params = _build_connection_params()
+
+    assert params["private_key_file"] == "/run/secrets/snowflake_key.p8"
+    assert "password" not in params
+
+
+def test_connection_params_prefer_private_key_content_over_password(monkeypatch):
+    # Password auth on this project's Snowflake account hit a platform-wide
+    # MFA-for-password requirement a headless CI job can't satisfy; key-pair
+    # is exempt, so it must win whenever both are configured.
+    pytest.importorskip("cryptography")
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    pem = key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ).decode()
+
+    _set_required_snowflake_env(monkeypatch)
+    monkeypatch.setenv("SNOWFLAKE_PRIVATE_KEY", pem)
+    monkeypatch.setenv("SNOWFLAKE_PASSWORD", "hunter2")  # present, but must be ignored
+
+    params = _build_connection_params()
+
+    expected_der = key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    assert params["private_key"] == expected_der
+    assert "password" not in params
 
 
 def test_cortex_extractor_extract_returns_intent_signal_via_mock():

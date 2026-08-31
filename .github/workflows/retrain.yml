@@ -59,7 +59,9 @@ jobs:
           SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
           SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
           SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
-          SNOWFLAKE_PASSWORD: ${{ secrets.SNOWFLAKE_PASSWORD }}
+          # Key-pair, not password: this account enforces MFA for password
+          # auth, which a headless job can't satisfy. Key-pair is exempt.
+          SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
         run: python src/monitoring/run_scheduled_jobs.py ${{ steps.which.outputs.job }}
 
       # Model binaries and the drift dashboard are handed back as build
