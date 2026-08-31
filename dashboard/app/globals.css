@@ -194,8 +194,21 @@ body {
   background: #191d28;
 }
 
+/* A visible box around the selected row, not just a background tint --
+   box-shadow (not border) so it doesn't shift row height/alignment. Each
+   cell contributes top+bottom edges; the first/last cell add the left/right
+   edges, together forming one rectangle around the whole row. */
 .leaderboard tr.selected td {
   background: #1c2740;
+  box-shadow: inset 0 1px 0 var(--accent), inset 0 -1px 0 var(--accent);
+}
+
+.leaderboard tr.selected td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent), inset 0 1px 0 var(--accent), inset 0 -1px 0 var(--accent);
+}
+
+.leaderboard tr.selected td:last-child {
+  box-shadow: inset -3px 0 0 var(--accent), inset 0 1px 0 var(--accent), inset 0 -1px 0 var(--accent);
 }
 
 .detail-panel {
@@ -203,6 +216,32 @@ body {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 20px;
+}
+
+/* Re-keyed to the selected row's id on every selection change (see
+   page.tsx), so this is a fresh DOM node each time and the animation
+   below restarts -- otherwise React would just patch text in place and
+   a switch between rows would be visually silent. */
+.detail-panel-content {
+  animation: detail-flash 0.7s ease-out;
+  border-radius: 6px;
+}
+
+@keyframes detail-flash {
+  0% {
+    background: rgba(91, 141, 239, 0.22);
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  100% {
+    background: rgba(91, 141, 239, 0);
+    box-shadow: 0 0 0 2px rgba(91, 141, 239, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-panel-content {
+    animation: none;
+  }
 }
 
 .detail-panel h2 {

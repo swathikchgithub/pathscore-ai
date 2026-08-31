@@ -142,7 +142,10 @@ export default function Home() {
         </div>
         <div className="detail-panel">
           {selectedEntry ? (
-            <>
+            // Re-keyed to the entry's id: a fresh DOM node per selection so
+            // the flash animation (globals.css) actually restarts instead
+            // of React quietly patching text in an existing node.
+            <div key={selectedEntry.id} className="detail-panel-content">
               <h2>{selectedEntry.id}</h2>
               <p className="score">
                 {selectedEntry.score_pct.toFixed(1)}% probability &middot; predicted:{" "}
@@ -167,7 +170,7 @@ export default function Home() {
                 pushes the score up, red pulls it down.
               </p>
               <ShapBarChart factors={selectedEntry.top_factors} />
-            </>
+            </div>
           ) : (
             <p className="empty">Select a row to see score factors.</p>
           )}
