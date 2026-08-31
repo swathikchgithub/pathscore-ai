@@ -17,3 +17,4 @@ dashboard/playwright/.cache/
 # the scheduled workflow uploads it as a build artifact instead of committing it
 monitoring/drift_log.jsonl
 monitoring/dashboard.md
+.vercel

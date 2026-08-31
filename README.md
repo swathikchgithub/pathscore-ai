@@ -4,9 +4,9 @@ A config-driven scoring platform for GTM use cases (Contact Score, PTB Prospect,
 Funnel Stage, GTM Fit). One shared pipeline; each use case is just a label
 definition + feature subset, not a separate codebase.
 
-**Live:** [dashboard](https://dashboard-production-6423.up.railway.app) ·
-[API](https://api-production-c80d.up.railway.app/health) — see
-[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for how it's deployed.
+**Live:** [dashboard](https://pathscore-ai-dashboard.vercel.app) ·
+[API](https://api-production-c80d.up.railway.app/health) — both auto-deploy
+on push to `main`; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for how.
 
 ## Architecture
 
