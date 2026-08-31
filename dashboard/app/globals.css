@@ -219,28 +219,19 @@ body {
 }
 
 /* Re-keyed to the selected row's id on every selection change (see
-   page.tsx), so this is a fresh DOM node each time and the animation
-   below restarts -- otherwise React would just patch text in place and
-   a switch between rows would be visually silent. */
+   page.tsx), so this is a fresh DOM node each time and the color
+   animations below restart -- otherwise React would just patch text in
+   place and a switch between rows would be visually silent. The signal
+   is the text color itself (below), not a background wash over the
+   whole card -- that read as a distracting flash rather than pointing
+   at what actually changed. */
 .detail-panel-content {
-  animation: detail-flash 0.7s ease-out;
   border-radius: 6px;
 }
 
-@keyframes detail-flash {
-  0% {
-    background: rgba(91, 141, 239, 0.22);
-    box-shadow: 0 0 0 2px var(--accent);
-  }
-  100% {
-    background: rgba(91, 141, 239, 0);
-    box-shadow: 0 0 0 2px rgba(91, 141, 239, 0);
-  }
-}
-
 /* Same var(--accent) as the row's box outline (globals.css above) and the
-   same 0.7s window as detail-flash, so the row you clicked and the text
-   that just updated read as one connected event, not two separate ones. */
+   same 0.7s window, so the row you clicked and the text that just updated
+   read as one connected event, not two separate ones. */
 .detail-panel-content h2 {
   animation: id-color-flash 0.7s ease-out;
 }
@@ -268,7 +259,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .detail-panel-content,
   .detail-panel-content h2,
   .detail-panel-content .score {
     animation: none;
