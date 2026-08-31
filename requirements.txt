@@ -11,3 +11,4 @@ python-dotenv>=1.0.0
 joblib>=1.4.0
 pytest>=8.0.0
 snowflake-snowpark-python>=1.20.0  # only needed for live Cortex mode; mock mode has no dependency on it
+requests>=2.31.0  # only needed for live LoRA mode; mock mode has no dependency on it

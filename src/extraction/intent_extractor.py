@@ -218,6 +218,72 @@ class CortexExtractor(IntentExtractor):
         )
 
 
+class LoRAClient(ABC):
+    """Seam between LoRAExtractor's business logic and how the adapter
+    actually gets invoked -- a live HuggingFace Inference Endpoint or a
+    local mock, selected by whether HF_API_TOKEN is configured. Same shape
+    as CortexClient above, for the same reason."""
+
+    @abstractmethod
+    def predict(self, adapter_name: str, text: str) -> dict:
+        """Structured response: {"intent_score": float, "sentiment": str, "urgency_flag": bool}."""
+
+
+class HFInferenceEndpointClient(LoRAClient):
+    """Live client: POSTs to a HuggingFace Inference Endpoint running the
+    frozen base model + LoRA adapter. Bearer-token auth, JSON body only --
+    never string-concatenate email text into the request."""
+
+    def __init__(self, endpoint_url: str, api_token: str, timeout: float = 15.0):
+        self.endpoint_url = endpoint_url
+        self.api_token = api_token
+        self.timeout = timeout
+
+    def predict(self, adapter_name: str, text: str) -> dict:
+        import requests  # optional dependency, only needed for live LoRA mode
+
+        response = requests.post(
+            self.endpoint_url,
+            headers={"Authorization": f"Bearer {self.api_token}"},
+            json={"adapter": adapter_name, "inputs": text},
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+class MockLoRAClient(LoRAClient):
+    """Local stand-in, used automatically when no HF token is configured.
+    Reuses MockCortexClient's heuristic rather than a second one -- there's
+    no adapter-specific behavior to fake, since a real adapter's whole point
+    is a signal the generic heuristic can't capture. Enough to exercise a
+    LoRA-backed use case end-to-end in dev/demo; not a substitute for
+    validating against the real adapter before shipping."""
+
+    def predict(self, adapter_name: str, text: str) -> dict:
+        mock_cortex = MockCortexClient()
+        sentiment_score = mock_cortex.sentiment(text)
+        return {
+            "intent_score": (sentiment_score + 1) / 2,
+            "sentiment": (
+                "positive" if sentiment_score > 0.2
+                else "negative" if sentiment_score < -0.2
+                else "neutral"
+            ),
+            "urgency_flag": mock_cortex.classify_text(text, ["urgent", "not urgent"]) == "urgent",
+        }
+
+
+def _build_lora_client(endpoint_url: str) -> LoRAClient:
+    """Factory: real HF Inference Endpoint client if HF_API_TOKEN is set,
+    otherwise a local mock -- same env/config-driven pattern as
+    _build_cortex_client above."""
+    api_token = os.getenv("HF_API_TOKEN")
+    if not api_token:
+        return MockLoRAClient()
+    return HFInferenceEndpointClient(endpoint_url, api_token)
+
+
 class LoRAExtractor(IntentExtractor):
     """
     Fallback extractor for company-specific signals Cortex's generic
@@ -229,14 +295,18 @@ class LoRAExtractor(IntentExtractor):
     the base model stays frozen and shared across every LoRA adapter/use case.
     """
 
-    def __init__(self, hf_endpoint_url: str, adapter_name: str):
+    def __init__(self, hf_endpoint_url: str, adapter_name: str, lora_client: LoRAClient = None):
         self.hf_endpoint_url = hf_endpoint_url
         self.adapter_name = adapter_name
+        self.client = lora_client or _build_lora_client(hf_endpoint_url)
 
     def extract(self, contact_id: str, text: str) -> IntentSignal:
-        raise NotImplementedError(
-            f"POST to {self.hf_endpoint_url} with adapter='{self.adapter_name}' "
-            f"and parse the structured intent response."
+        result = self.client.predict(self.adapter_name, text)
+        return IntentSignal(
+            contact_id=contact_id,
+            intent_score=max(0.0, min(1.0, float(result.get("intent_score", 0.5)))),
+            sentiment=result.get("sentiment", "neutral"),
+            urgency_flag=bool(result.get("urgency_flag", False)),
         )
 
 
