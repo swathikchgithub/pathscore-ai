@@ -111,3 +111,10 @@ cd dashboard && npm run test:e2e      # real API + real dashboard, one browser (
 Add a new YAML file under `src/config/` defining the label window, positive
 class definition, and feature columns. No new training code needed — the
 same `train.py` and `app.py` read the config and produce a new model.
+
+## Documentation
+
+Product requirements, technical design, full architecture diagrams,
+architecture decision records (each with alternatives considered), a
+deployment strategy, and a code walkthrough script all live in
+[`docs/`](docs/README.md).
