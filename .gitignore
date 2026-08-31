@@ -8,6 +8,7 @@ __pycache__/
 dashboard/node_modules/
 dashboard/.next/
 dashboard/.env*.local
+dashboard/*.tsbuildinfo
 
 # drift-check output -- regenerated (with a fresh timestamp) on every run;
 # the scheduled workflow uploads it as a build artifact instead of committing it

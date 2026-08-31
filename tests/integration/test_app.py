@@ -25,6 +25,21 @@ def clear_model_cache():
     app_module._model_cache.clear()
 
 
+@pytest.fixture(autouse=True)
+def reset_security_state():
+    # API_KEY is read from the environment once at import time, so tests
+    # that need auth "on" set app_module.API_KEY directly rather than the
+    # env var. Reset both that and the rate limiter's request log so one
+    # test's auth/rate-limit state can't leak into the next.
+    app_module.API_KEY = None
+    app_module.RATE_LIMIT_PER_MINUTE = 60
+    app_module._rate_limit_requests.clear()
+    yield
+    app_module.API_KEY = None
+    app_module.RATE_LIMIT_PER_MINUTE = 60
+    app_module._rate_limit_requests.clear()
+
+
 class _FakeModel:
     def __init__(self, classes):
         self.classes_ = classes
@@ -224,3 +239,114 @@ def test_leaderboard_clamps_limit_to_the_1_to_500_range(tmp_path):
 
     assert zero_limit.json()["count"] == 1  # clamped up to at least 1
     assert huge_limit.json()["count"] == 3  # clamped down to 500, but only 3 rows exist
+
+
+def test_missing_feature_returns_422_with_the_missing_column_named():
+    bundle = _binary_bundle(proba=[[0.5, 0.5]], shap_values=np.zeros((1, 2)))
+    app_module._model_cache["missing_feat"] = bundle
+
+    response = client.post("/score/missing_feat", json={"features": {"a": 1}})  # "b" missing
+
+    assert response.status_code == 422
+    assert "b" in response.json()["detail"]
+
+
+# --- Auth ------------------------------------------------------------------
+
+
+def test_score_is_open_by_default_with_no_api_key_configured():
+    bundle = _binary_bundle(proba=[[0.5, 0.5]], shap_values=np.zeros((1, 2)))
+    app_module._model_cache["open_uc"] = bundle
+
+    response = client.post("/score/open_uc", json={"features": {"a": 1, "b": 2}})
+
+    assert response.status_code == 200
+
+
+def test_score_requires_api_key_once_configured():
+    app_module.API_KEY = "secret"
+    bundle = _binary_bundle(proba=[[0.5, 0.5]], shap_values=np.zeros((1, 2)))
+    app_module._model_cache["locked_uc"] = bundle
+
+    no_header = client.post("/score/locked_uc", json={"features": {"a": 1, "b": 2}})
+    wrong_key = client.post(
+        "/score/locked_uc", json={"features": {"a": 1, "b": 2}}, headers={"X-API-Key": "nope"}
+    )
+    right_key = client.post(
+        "/score/locked_uc", json={"features": {"a": 1, "b": 2}}, headers={"X-API-Key": "secret"}
+    )
+
+    assert no_header.status_code == 401
+    assert wrong_key.status_code == 401
+    assert right_key.status_code == 200
+
+
+def test_leaderboard_requires_api_key_once_configured(tmp_path):
+    sample = tmp_path / "sample.csv"
+    pd.DataFrame({"id": ["X1"], "a": [1], "b": [2]}).to_csv(sample, index=False)
+    app_module.API_KEY = "secret"
+    bundle = _binary_bundle(
+        proba=[[0.5, 0.5]],
+        shap_values=np.zeros((1, 2)),
+        extra_config={"sample_data": str(sample), "id_column": "id"},
+    )
+    app_module._model_cache["locked_leaderboard"] = bundle
+
+    no_header = client.get("/score/locked_leaderboard/leaderboard")
+    right_key = client.get(
+        "/score/locked_leaderboard/leaderboard", headers={"X-API-Key": "secret"}
+    )
+
+    assert no_header.status_code == 401
+    assert right_key.status_code == 200
+
+
+def test_health_and_use_cases_need_no_api_key_even_when_configured(tmp_path, monkeypatch):
+    app_module.API_KEY = "secret"
+    monkeypatch.setattr(app_module, "CONFIG_DIR", str(tmp_path))
+
+    assert client.get("/health").status_code == 200
+    assert client.get("/use-cases").status_code == 200
+
+
+# --- Rate limiting -----------------------------------------------------
+
+
+def test_rate_limit_blocks_requests_past_the_configured_cap():
+    app_module.RATE_LIMIT_PER_MINUTE = 2
+    bundle = _binary_bundle(proba=[[0.5, 0.5]], shap_values=np.zeros((1, 2)))
+    app_module._model_cache["rate_limited_uc"] = bundle
+
+    responses = [
+        client.post("/score/rate_limited_uc", json={"features": {"a": 1, "b": 2}})
+        for _ in range(3)
+    ]
+
+    assert [r.status_code for r in responses] == [200, 200, 429]
+
+
+def test_rate_limit_is_tracked_separately_per_api_key():
+    app_module.RATE_LIMIT_PER_MINUTE = 1
+    app_module.API_KEY = None  # keyed by client IP when no API key is presented, still per-key
+    bundle = _binary_bundle(proba=[[0.5, 0.5]], shap_values=np.zeros((1, 2)))
+    app_module._model_cache["per_key_uc"] = bundle
+
+    first = client.post(
+        "/score/per_key_uc",
+        json={"features": {"a": 1, "b": 2}},
+        headers={"X-API-Key": "tenant-a"},
+    )
+    second_same_key = client.post(
+        "/score/per_key_uc",
+        json={"features": {"a": 1, "b": 2}},
+        headers={"X-API-Key": "tenant-a"},
+    )
+    other_key = client.post(
+        "/score/per_key_uc",
+        json={"features": {"a": 1, "b": 2}},
+        headers={"X-API-Key": "tenant-b"},
+    )
+
+    assert first.status_code == 200
+    assert second_same_key.status_code == 429
+    assert other_key.status_code == 200

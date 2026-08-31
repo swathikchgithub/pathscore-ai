@@ -5,17 +5,28 @@ hardcoding per-use-case routes.
 
 Run:
   uvicorn src.serving.app:app --reload
+
+Env vars (all optional, all default to open/permissive for local dev):
+  CORS_ORIGINS          comma-separated allowlist; unset -> "*"
+  API_KEY               require X-API-Key on /score/* routes; unset -> no auth
+  RATE_LIMIT_PER_MINUTE per-client cap on /score/* routes; default 60
 """
 
 import glob
 import os
+import secrets
+import time
+from collections import defaultdict
+from threading import Lock
+
 import yaml
 import joblib
 import shap
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
 app = FastAPI(title="PathScore AI")
@@ -34,6 +45,42 @@ MODELS_DIR = "models"
 CONFIG_DIR = "src/config"
 
 _model_cache = {}
+
+# --- Auth + rate limiting -------------------------------------------------
+# Same env-driven, off-by-default-in-local-dev pattern as CortexExtractor /
+# LoRAExtractor's mock-vs-live clients: unset API_KEY -> demo mode, matching
+# the README quickstart with no setup required; set it to require a
+# X-API-Key header on every scoring route.
+
+API_KEY = os.getenv("API_KEY")
+RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
+
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+_rate_limit_lock = Lock()
+_rate_limit_requests = defaultdict(list)  # client key -> request timestamps in the current window
+
+
+def require_api_key(provided: str = Depends(_api_key_header)):
+    if API_KEY is None:
+        return
+    if provided is None or not secrets.compare_digest(provided, API_KEY):
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
+
+
+def enforce_rate_limit(request: Request, provided: str = Depends(_api_key_header)):
+    """Fixed-window limiter keyed by API key (if presented) or client IP.
+    In-process only -- fine for the single-worker demo this ships as; a
+    multi-worker/production deployment needs a shared store (Redis) instead
+    of this in-memory dict."""
+    key = provided or (request.client.host if request.client else "unknown")
+    now = time.monotonic()
+    window_start = now - 60
+    with _rate_limit_lock:
+        timestamps = _rate_limit_requests[key]
+        timestamps[:] = [t for t in timestamps if t > window_start]
+        if len(timestamps) >= RATE_LIMIT_PER_MINUTE:
+            raise HTTPException(status_code=429, detail="Rate limit exceeded, try again shortly")
+        timestamps.append(now)
 
 
 def load_use_case(use_case: str):
@@ -61,7 +108,12 @@ def load_use_case(use_case: str):
 
 
 def _build_feature_frame(config: dict, records: list) -> pd.DataFrame:
-    df = pd.DataFrame(records)[config["feature_columns"]]
+    raw = pd.DataFrame(records)
+    missing = [c for c in config["feature_columns"] if c not in raw.columns]
+    if missing:
+        raise HTTPException(status_code=422, detail=f"Missing required feature(s): {missing}")
+
+    df = raw[config["feature_columns"]]
     for c in config.get("categorical_columns", []):
         df[c] = df[c].astype("category")
     return df
@@ -123,7 +175,11 @@ class ScoreResponse(BaseModel):
     top_factors: list
 
 
-@app.post("/score/{use_case}", response_model=ScoreResponse)
+@app.post(
+    "/score/{use_case}",
+    response_model=ScoreResponse,
+    dependencies=[Depends(require_api_key), Depends(enforce_rate_limit)],
+)
 def score(use_case: str, req: ScoreRequest):
     bundle = load_use_case(use_case)
     X = _build_feature_frame(bundle["config"], [req.features])
@@ -145,7 +201,11 @@ class LeaderboardResponse(BaseModel):
     results: list
 
 
-@app.get("/score/{use_case}/leaderboard", response_model=LeaderboardResponse)
+@app.get(
+    "/score/{use_case}/leaderboard",
+    response_model=LeaderboardResponse,
+    dependencies=[Depends(require_api_key), Depends(enforce_rate_limit)],
+)
 def leaderboard(use_case: str, limit: int = 25):
     """Scores a sample of entities for this use case (from the config's
     sample_data CSV -- synthetic data standing in for a warehouse pull of
