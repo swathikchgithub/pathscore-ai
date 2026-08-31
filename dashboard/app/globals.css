@@ -229,32 +229,36 @@ body {
   border-radius: 6px;
 }
 
-/* Same var(--accent) as the row's box outline (globals.css above) and the
-   same 0.7s window, so the row you clicked and the text that just updated
-   read as one connected event, not two separate ones. */
+/* Same var(--accent) as the row's box outline (globals.css above), so the
+   row you clicked and the text stay visibly linked -- the text turns
+   accent-colored and stays that way (not a fade back to the resting
+   color), with a brief opacity pop on change so a re-selection still
+   reads as an event even when the color was already accent. */
 .detail-panel-content h2 {
-  animation: id-color-flash 0.7s ease-out;
+  color: var(--accent);
+  animation: id-color-flash 0.3s ease-out;
 }
 
 @keyframes id-color-flash {
   0% {
-    color: var(--accent);
+    opacity: 0.4;
   }
   100% {
-    color: var(--text);
+    opacity: 1;
   }
 }
 
 .detail-panel-content .score {
-  animation: score-color-flash 0.7s ease-out;
+  color: var(--accent);
+  animation: score-color-flash 0.3s ease-out;
 }
 
 @keyframes score-color-flash {
   0% {
-    color: var(--accent);
+    opacity: 0.4;
   }
   100% {
-    color: var(--muted);
+    opacity: 1;
   }
 }
 
