@@ -19,7 +19,7 @@ on:
         required: true
         default: retrain
         type: choice
-        options: [retrain, drift-check]
+        options: [retrain, drift-check, verify-cortex]
 
 permissions:
   contents: read
@@ -62,7 +62,12 @@ jobs:
           # Key-pair, not password: this account enforces MFA for password
           # auth, which a headless job can't satisfy. Key-pair is exempt.
           SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
-        run: python src/monitoring/run_scheduled_jobs.py ${{ steps.which.outputs.job }}
+        run: |
+          if [ "${{ steps.which.outputs.job }}" = "verify-cortex" ]; then
+            python src/monitoring/verify_cortex.py
+          else
+            python src/monitoring/run_scheduled_jobs.py ${{ steps.which.outputs.job }}
+          fi
 
       # Model binaries and the drift dashboard are handed back as build
       # artifacts rather than auto-committed to main -- a human reviews and
