@@ -1,14 +1,54 @@
 # Deployment Strategy
 
-## Current state: local only
+## Current state: deployed
 
-Nothing in this system is deployed anywhere. `.github/workflows/retrain.yml`
-exists but is dormant until this repo is pushed to GitHub with Actions
-enabled — the file describes a scheduler, it doesn't run one on its own
-([ADR-0007](adr/0007-github-actions-cron-scheduling.md)). This document
-describes the recommended path to a real deployment; executing it is a
-separate, deliberate decision for whoever owns this repo, not something
-implied by writing it down.
+Both services are live on Railway, project `pathscore-ai`:
+
+- **API**: https://api-production-c80d.up.railway.app
+- **Dashboard**: https://dashboard-production-6423.up.railway.app
+
+`.github/workflows/retrain.yml` is live too — this repo is on GitHub with
+Actions enabled, so its weekly retrain / daily drift-check cron actually
+fires ([ADR-0007](adr/0007-github-actions-cron-scheduling.md)).
+
+The target topology below (Vercel for the dashboard) was the original
+recommendation; the actual deployment put both services on Railway instead,
+since that was the platform with tooling available at deploy time — Railway
+hosts a Next.js app via the same Railpack auto-detection as the API, so
+nothing about the app needed to change to make that substitution. The
+target-topology section is left as-is below since the reasoning (why
+Railway/Fly for the API, the CI/CD shape) still holds; only the dashboard's
+host differs from what's written there.
+
+### What it took to get a clean deploy
+
+Two real issues came up, both fixed via Railway config rather than app code:
+
+1. **`libgomp.so.1: cannot open shared object file`** — LightGBM's native
+   library needs the GNU OpenMP runtime, absent from Railway's default
+   Railpack Python image. Fixed with a service variable:
+   `RAILPACK_DEPLOY_APT_PACKAGES=libgomp1`.
+2. **Monorepo root-directory double-scoping** — deploying the dashboard via
+   `railway up` from within `dashboard/` uploads that directory *as* the
+   build root; a service-level `source.rootDirectory: /dashboard` on top of
+   that made Railway look for a nonexistent nested `dashboard/dashboard/`.
+   Fixed by leaving `rootDirectory` unset for a `railway up`-deployed service
+   (it's only needed when Railway builds from a *whole-repo* source, e.g. a
+   connected GitHub repo, not a scoped local upload).
+
+Full working configuration, for reproducing this from a fresh Railway
+project:
+
+| | `api` service | `dashboard` service |
+|---|---|---|
+| Deploy source | `railway up` from repo root | `railway up` from `dashboard/` |
+| `deploy.startCommand` | `uvicorn src.serving.app:app --host 0.0.0.0 --port $PORT` | auto-detected (`next start`) |
+| `source.rootDirectory` | unset | unset |
+| Variables | `API_KEY`, `RAILPACK_DEPLOY_APT_PACKAGES=libgomp1`, `CORS_ORIGINS=<dashboard domain>` | `NEXT_PUBLIC_API_BASE_URL=<api domain>`, `NEXT_PUBLIC_API_KEY=<same as API_KEY>` |
+
+`NEXT_PUBLIC_*` vars are baked in at Next.js build time, so the API must get
+its public domain (`railway domain --service api`) *before* the dashboard's
+first build for the URL to be correct.
 
 ## Target topology
 
