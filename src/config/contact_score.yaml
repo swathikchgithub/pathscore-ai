@@ -1,0 +1,42 @@
+use_case: contact_score
+description: >
+  Probability that a contact converts to a qualified sales conversation
+  within the current outreach window.
+
+entity: contact
+label_column: contact_converted
+id_column: contact_id
+sample_data: data/synthetic/contacts.csv
+
+feature_columns:
+  - email_open_rate
+  - email_reply_count_90d
+  - demo_requested
+  - linkedin_engaged
+  - avg_intent_score        # from extraction layer (Cortex or LoRA)
+  - icp_fit_score           # rolled up from account
+  - buying_role             # categorical
+  - trigger_event           # categorical, rolled up from account
+  - existing_customer
+
+categorical_columns:
+  - buying_role
+  - trigger_event
+
+model:
+  type: lightgbm
+  params:
+    n_estimators: 300
+    max_depth: 5
+    learning_rate: 0.05
+    num_leaves: 31
+    objective: binary
+
+calibration:
+  method: platt  # platt | isotonic
+
+retrain:
+  cadence: weekly
+  min_new_labels: 200
+  drift_check_metric: auc_roc
+  drift_threshold: 0.03

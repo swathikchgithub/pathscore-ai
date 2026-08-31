@@ -1,0 +1,3 @@
+auc_roc: 0.8617018902986877
+n_classes: 4
+precision_at_10pct: 0.5933333333333333

@@ -1,0 +1,52 @@
+use_case: funnel_stage
+description: >
+  Predicted funnel stage for a contact (MQL, SQL, Opportunity, Closed-Won),
+  driven by the same intent/engagement/fit/role/trigger composite used for
+  Contact Score, mapped to ordered stages instead of a single binary cutoff.
+
+entity: contact
+label_column: funnel_stage
+id_column: contact_id
+sample_data: data/synthetic/contacts.csv
+
+# Ordered stage names for funnel_stage values 0-3. Reference only -- train.py
+# and app.py work off the numeric column and don't read this key.
+stage_names: [MQL, SQL, Opportunity, Closed-Won]
+
+feature_columns:
+  - email_open_rate
+  - email_reply_count_90d
+  - demo_requested
+  - linkedin_engaged
+  - avg_intent_score        # from extraction layer (Cortex or LoRA)
+  - icp_fit_score           # rolled up from account
+  - buying_role             # categorical
+  - trigger_event           # categorical, rolled up from account
+  - existing_customer
+
+categorical_columns:
+  - buying_role
+  - trigger_event
+
+model:
+  type: lightgbm
+  params:
+    n_estimators: 300
+    max_depth: 5
+    learning_rate: 0.05
+    num_leaves: 31
+    objective: multiclass
+    num_class: 4
+
+calibration:
+  method: platt  # platt | isotonic
+
+# Class reported as score_pct / SHAP top-factors in serving. Defaults to the
+# highest-value class if omitted -- stated explicitly here for clarity.
+positive_class: 3
+
+retrain:
+  cadence: weekly
+  min_new_labels: 200
+  drift_check_metric: auc_roc
+  drift_threshold: 0.03

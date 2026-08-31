@@ -1,0 +1,42 @@
+use_case: ptb_prospect
+description: >
+  Probability that an account has a realistic, near-term path to signed
+  revenue (Path-to-Bill), combining fit, trigger events, and contact-level
+  buying signals rolled up to the account.
+
+entity: account
+label_column: account_ptb_label
+id_column: account_id
+sample_data: data/synthetic/accounts.csv
+
+feature_columns:
+  - icp_fit_score
+  - trigger_event           # categorical
+  - days_since_last_touch
+  - existing_customer
+  - company_size            # categorical
+  - industry                # categorical
+  - max_prob                # rolled-up max contact conversion prob (from contact_score model output)
+
+categorical_columns:
+  - trigger_event
+  - company_size
+  - industry
+
+model:
+  type: lightgbm
+  params:
+    n_estimators: 250
+    max_depth: 4
+    learning_rate: 0.05
+    num_leaves: 24
+    objective: binary
+
+calibration:
+  method: isotonic
+
+retrain:
+  cadence: weekly
+  min_new_labels: 100
+  drift_check_metric: precision_at_k
+  drift_threshold: 0.05
