@@ -97,6 +97,15 @@ cp .env.local.example .env.local  # points at the API above by default
 npm run dev
 ```
 
+## Testing
+
+```bash
+pytest tests/                        # Python: unit + integration
+cd dashboard && npm test              # dashboard: component/unit (Vitest)
+cd dashboard && npx playwright install chromium  # once
+cd dashboard && npm run test:e2e      # real API + real dashboard, one browser (Playwright)
+```
+
 ## Adding a new use case
 
 Add a new YAML file under `src/config/` defining the label window, positive
