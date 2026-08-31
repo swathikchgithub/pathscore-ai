@@ -1,0 +1,71 @@
+name: Scheduled retrain and drift check
+
+# The actual scheduler for src/monitoring/run_scheduled_jobs.py. Retrain
+# runs weekly, matching every use case's config-declared retrain.cadence;
+# drift-check runs daily as a cheaper early warning between retrains (it
+# also fires on the retrain day -- harmless, just compares the
+# freshly-retrained baseline to itself).
+#
+# Dormant until this repo is pushed to GitHub with Actions enabled -- adding
+# this file doesn't run anything by itself.
+on:
+  schedule:
+    - cron: "0 5 * * 1"  # retrain -- Mondays, 05:00 UTC
+    - cron: "0 6 * * *"  # drift-check -- daily, 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Which job to run
+        required: true
+        default: retrain
+        type: choice
+        options: [retrain, drift-check]
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Determine which job this trigger is for
+        id: which
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "job=${{ inputs.job }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 5 * * 1" ]; then
+            echo "job=retrain" >> "$GITHUB_OUTPUT"
+          else
+            echo "job=drift-check" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run job
+        run: python src/monitoring/run_scheduled_jobs.py ${{ steps.which.outputs.job }}
+
+      # Model binaries and the drift dashboard are handed back as build
+      # artifacts rather than auto-committed to main -- a human reviews and
+      # commits an updated model deliberately, the same as any other change.
+      - name: Upload retrained models
+        if: steps.which.outputs.job == 'retrain'
+        uses: actions/upload-artifact@v4
+        with:
+          name: retrained-models
+          path: |
+            models/
+            data/features/
+
+      - name: Upload drift dashboard
+        if: steps.which.outputs.job == 'drift-check'
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-dashboard
+          path: monitoring/dashboard.md

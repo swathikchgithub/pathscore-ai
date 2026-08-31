@@ -8,3 +8,8 @@ __pycache__/
 dashboard/node_modules/
 dashboard/.next/
 dashboard/.env*.local
+
+# drift-check output -- regenerated (with a fresh timestamp) on every run;
+# the scheduled workflow uploads it as a build artifact instead of committing it
+monitoring/drift_log.jsonl
+monitoring/dashboard.md
