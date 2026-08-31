@@ -1,4 +1,5 @@
 use_case: ptb_prospect
+display_name: PTB Prospect
 description: >
   Probability that an account has a realistic, near-term path to signed
   revenue (Path-to-Bill), combining fit, trigger events, and contact-level

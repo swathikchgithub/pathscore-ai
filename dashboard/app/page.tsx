@@ -2,12 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { getLeaderboard, getUseCases } from "@/lib/api";
-import type { LeaderboardEntry } from "@/lib/types";
+import type { LeaderboardEntry, UseCaseInfo } from "@/lib/types";
 import Leaderboard from "@/components/Leaderboard";
 import ShapBarChart from "@/components/ShapBarChart";
 
+const ENTITY_LABEL: Record<string, string> = {
+  contact: "contacts",
+  account: "accounts",
+};
+
 export default function Home() {
-  const [useCases, setUseCases] = useState<string[]>([]);
+  const [useCases, setUseCases] = useState<UseCaseInfo[]>([]);
   const [selectedUseCase, setSelectedUseCase] = useState<string>("");
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<LeaderboardEntry | null>(null);
@@ -18,56 +23,115 @@ export default function Home() {
     getUseCases()
       .then((cases) => {
         setUseCases(cases);
-        if (cases.length > 0) setSelectedUseCase(cases[0]);
+        if (cases.length > 0) setSelectedUseCase(cases[0].name);
       })
       .catch((e: Error) => setError(e.message));
   }, []);
 
   useEffect(() => {
     if (!selectedUseCase) return;
+    // Guards against an out-of-order response: if the use case changes again
+    // before this fetch resolves, the cleanup below flips `cancelled` before
+    // the stale .then() can overwrite newer data with older data.
+    let cancelled = false;
     setLoading(true);
     setError(null);
     setSelectedEntry(null);
     getLeaderboard(selectedUseCase, 25)
       .then((data) => {
+        if (cancelled) return;
         setEntries(data.results);
         setSelectedEntry(data.results[0] ?? null);
       })
-      .catch((e: Error) => setError(e.message))
-      .finally(() => setLoading(false));
+      .catch((e: Error) => {
+        if (!cancelled) setError(e.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [selectedUseCase]);
+
+  const activeUseCase = useCases.find((uc) => uc.name === selectedUseCase);
+  const entityLabel = activeUseCase ? ENTITY_LABEL[activeUseCase.entity] ?? activeUseCase.entity : "";
+  // Falls back to the raw index for use cases with no named classes (every
+  // binary use case today) -- only Funnel Stage currently declares stage_names.
+  const classLabel = (cls: string) => activeUseCase?.class_labels?.[cls] ?? `class ${cls}`;
 
   return (
     <main className="page">
       <header className="header">
         <h1>PathScore AI</h1>
-        <p className="subtitle">Ranked scoring dashboard</p>
+        <p className="subtitle">
+          A shared GTM scoring pipeline. Pick a use case to see who ranks highest and why.
+        </p>
         <select
           value={selectedUseCase}
           onChange={(e) => setSelectedUseCase(e.target.value)}
           className="use-case-select"
         >
           {useCases.map((uc) => (
-            <option key={uc} value={uc}>
-              {uc}
+            <option key={uc.name} value={uc.name}>
+              {uc.display_name}
             </option>
           ))}
         </select>
+
+        {activeUseCase && (
+          <div className="use-case-info">
+            <p className="use-case-description">{activeUseCase.description}</p>
+            <p className="use-case-meta">
+              Scores <strong>{entityLabel}</strong> &middot; predicts{" "}
+              <code>{activeUseCase.label_column}</code>
+            </p>
+          </div>
+        )}
       </header>
 
       {error && <div className="error">{error}</div>}
       {loading && <div className="loading">Loading...</div>}
 
       <div className="content">
-        <Leaderboard entries={entries} selectedId={selectedEntry?.id} onSelect={setSelectedEntry} />
+        <div>
+          <p className="section-caption">
+            Ranked highest to lowest by calibrated score, from a sample of {entityLabel || "entities"}{" "}
+            due for scoring. Click a row to see why it scored that way.
+          </p>
+          <Leaderboard
+            entries={entries}
+            selectedId={selectedEntry?.id}
+            onSelect={setSelectedEntry}
+            classLabel={classLabel}
+          />
+        </div>
         <div className="detail-panel">
           {selectedEntry ? (
             <>
               <h2>{selectedEntry.id}</h2>
               <p className="score">
-                {selectedEntry.score_pct.toFixed(1)}% &middot; predicted: {selectedEntry.predicted_class}
+                {selectedEntry.score_pct.toFixed(1)}% probability &middot; predicted:{" "}
+                {classLabel(selectedEntry.predicted_class)}
               </p>
+
+              <h3>Class probabilities</h3>
+              <ul className="class-probs">
+                {Object.entries(selectedEntry.class_probabilities)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([cls, prob]) => (
+                    <li key={cls}>
+                      <span className="class-probs-label">{classLabel(cls)}</span>
+                      <span className="class-probs-value">{(prob * 100).toFixed(1)}%</span>
+                    </li>
+                  ))}
+              </ul>
+
               <h3>Top factors</h3>
+              <p className="section-caption">
+                The features that most influenced this specific prediction (SHAP values) — green
+                pushes the score up, red pulls it down.
+              </p>
               <ShapBarChart factors={selectedEntry.top_factors} />
             </>
           ) : (
@@ -75,6 +139,14 @@ export default function Home() {
           )}
         </div>
       </div>
+
+      <footer className="footer">
+        Scored against synthetic GTM data for this demo — see{" "}
+        <a href="https://github.com/swathikchgithub/pathscore-ai/tree/main/docs">
+          docs/
+        </a>{" "}
+        for the architecture, decision records, and full pipeline behind these numbers.
+      </footer>
     </main>
   );
 }

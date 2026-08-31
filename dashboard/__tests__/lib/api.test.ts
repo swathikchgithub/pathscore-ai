@@ -18,12 +18,28 @@ function mockFetchOnce(response: { ok: boolean; status?: number; body?: unknown 
 
 describe("getUseCases", () => {
   it("fetches /use-cases and returns the parsed list", async () => {
-    mockFetchOnce({ ok: true, body: ["contact_score", "gtm_fit"] });
+    const useCases = [
+      {
+        name: "contact_score",
+        display_name: "Contact Score",
+        description: "Probability a contact converts.",
+        entity: "contact",
+        label_column: "contact_converted",
+      },
+      {
+        name: "gtm_fit",
+        display_name: "GTM Fit",
+        description: "Static ICP fit score.",
+        entity: "account",
+        label_column: "gtm_fit_label",
+      },
+    ];
+    mockFetchOnce({ ok: true, body: useCases });
     const { getUseCases } = await import("@/lib/api");
 
     const result = await getUseCases();
 
-    expect(result).toEqual(["contact_score", "gtm_fit"]);
+    expect(result).toEqual(useCases);
     expect(global.fetch).toHaveBeenCalledWith("http://localhost:8000/use-cases");
   });
 

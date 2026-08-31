@@ -1,4 +1,4 @@
-import type { LeaderboardResponse } from "./types";
+import type { LeaderboardResponse, UseCaseInfo } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -7,7 +7,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 const AUTH_HEADERS: HeadersInit = API_KEY ? { "X-API-Key": API_KEY } : {};
 
-export async function getUseCases(): Promise<string[]> {
+export async function getUseCases(): Promise<UseCaseInfo[]> {
   const res = await fetch(`${API_BASE_URL}/use-cases`);
   if (!res.ok) throw new Error(`Failed to load use cases (${res.status})`);
   return res.json();

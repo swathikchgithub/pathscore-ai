@@ -1,4 +1,5 @@
 use_case: contact_score
+display_name: Contact Score
 description: >
   Probability that a contact converts to a qualified sales conversation
   within the current outreach window.

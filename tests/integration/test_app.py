@@ -87,14 +87,52 @@ def test_health_returns_ok():
 
 
 def test_use_cases_lists_configs_found_in_config_dir(tmp_path, monkeypatch):
-    (tmp_path / "alpha.yaml").write_text("use_case: alpha\n")
-    (tmp_path / "beta.yaml").write_text("use_case: beta\n")
+    (tmp_path / "alpha.yaml").write_text(
+        "use_case: alpha\ndisplay_name: Alpha\ndescription: >\n  Does the alpha thing.\nentity: contact\nlabel_column: converted\n"
+    )
+    (tmp_path / "beta.yaml").write_text("use_case: beta\nentity: account\nlabel_column: won\n")
     monkeypatch.setattr(app_module, "CONFIG_DIR", str(tmp_path))
 
     response = client.get("/use-cases")
 
     assert response.status_code == 200
-    assert sorted(response.json()) == ["alpha", "beta"]
+    body = sorted(response.json(), key=lambda uc: uc["name"])
+    assert body == [
+        {
+            "name": "alpha",
+            "display_name": "Alpha",
+            "description": "Does the alpha thing.",
+            "entity": "contact",
+            "label_column": "converted",
+            "class_labels": None,
+        },
+        {
+            "name": "beta",
+            "display_name": "beta",  # falls back to the use_case name when unset
+            "description": "",
+            "entity": "account",
+            "label_column": "won",
+            "class_labels": None,
+        },
+    ]
+
+
+def test_use_cases_exposes_class_labels_when_a_config_declares_stage_names(tmp_path, monkeypatch):
+    (tmp_path / "staged.yaml").write_text(
+        "use_case: staged\nentity: contact\nlabel_column: stage\n"
+        "stage_names: [MQL, SQL, Opportunity, Closed-Won]\n"
+    )
+    monkeypatch.setattr(app_module, "CONFIG_DIR", str(tmp_path))
+
+    response = client.get("/use-cases")
+
+    assert response.status_code == 200
+    assert response.json()[0]["class_labels"] == {
+        "0": "MQL",
+        "1": "SQL",
+        "2": "Opportunity",
+        "3": "Closed-Won",
+    }
 
 
 # --- /score/{use_case} ---------------------------------------------------

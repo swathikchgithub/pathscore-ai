@@ -1,4 +1,5 @@
 use_case: funnel_stage
+display_name: Funnel Stage
 description: >
   Predicted funnel stage for a contact (MQL, SQL, Opportunity, Closed-Won),
   driven by the same intent/engagement/fit/role/trigger composite used for
@@ -9,8 +10,9 @@ label_column: funnel_stage
 id_column: contact_id
 sample_data: data/synthetic/contacts.csv
 
-# Ordered stage names for funnel_stage values 0-3. Reference only -- train.py
-# and app.py work off the numeric column and don't read this key.
+# Ordered stage names for funnel_stage values 0-3. train.py still works off
+# the numeric column directly; app.py's /use-cases route reads this to give
+# the dashboard human names for what would otherwise be opaque class indices.
 stage_names: [MQL, SQL, Opportunity, Closed-Won]
 
 feature_columns:

@@ -81,7 +81,8 @@ Stage 2 is where entity type decides the code path
 | Key | Type | Meaning |
 |---|---|---|
 | `use_case` | str | Must match the filename stem; used as the models/features directory name. |
-| `description` | str | Free text, shown nowhere programmatically today — documentation only. |
+| `display_name` | str (optional) | Human-readable name, served via `GET /use-cases` and shown in the dashboard's picker; falls back to `use_case` when unset. |
+| `description` | str | Free text; served via `GET /use-cases` and shown in the dashboard under the use-case picker. |
 | `entity` | `contact` \| `account` | Selects the `build_features.py` code path. |
 | `label_column` | str | Column in the raw/feature CSV that `train.py`/`drift_check.py` predict. |
 | `id_column` | str | Column used as the leaderboard's row identifier. |
@@ -110,7 +111,7 @@ Known Limitations.
 | Route | Auth\* | Success | Failure modes |
 |---|---|---|---|
 | `GET /health` | none | `200 {"status": "ok"}` | — |
-| `GET /use-cases` | none | `200 ["contact_score", ...]` | — |
+| `GET /use-cases` | none | `200 list[UseCaseInfo]` | — |
 | `POST /score/{use_case}` | API key + rate limit | `200 ScoreResponse` | `401` (bad/missing key), `404` (unknown use case / model not trained), `422` (malformed body / missing feature columns), `429` (rate limit) |
 | `GET /score/{use_case}/leaderboard?limit=N` | API key + rate limit | `200 LeaderboardResponse` | `401`, `404` (unknown use case / model not trained / no `sample_data`), `429` |
 
@@ -118,6 +119,16 @@ Known Limitations.
 configured — see [ADR-0008](adr/0008-api-key-rate-limit-over-full-auth.md).
 
 ```
+UseCaseInfo:
+  name: str                     # matches the config filename stem
+  display_name: str             # config's display_name, falls back to name
+  description: str              # config's description, whitespace-normalized
+  entity: str                   # "contact" | "account"
+  label_column: str             # the column this use case's model predicts
+  class_labels: dict[str, str] | None   # class index -> name, from config's
+                                         # stage_names when present (only
+                                         # funnel_stage today); null otherwise
+
 ScoreResponse:
   use_case: str
   score_pct: float              # positive_class probability, 0-100, 2dp

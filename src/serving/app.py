@@ -233,10 +233,41 @@ def leaderboard(use_case: str, limit: int = 25):
     return LeaderboardResponse(use_case=use_case, count=len(entries), results=entries)
 
 
-@app.get("/use-cases")
+class UseCaseInfo(BaseModel):
+    name: str
+    display_name: str
+    description: str
+    entity: str
+    label_column: str
+    class_labels: dict[str, str] | None = None
+
+
+@app.get("/use-cases", response_model=list[UseCaseInfo])
 def list_use_cases():
-    files = glob.glob(f"{CONFIG_DIR}/*.yaml")
-    return [os.path.splitext(os.path.basename(f))[0] for f in files]
+    """Every registered use case with the metadata its own config already
+    declares -- what it predicts and what kind of entity it scores -- so the
+    dashboard (or any other client) can explain itself instead of just
+    listing config filenames or raw class indices."""
+    infos = []
+    for path in sorted(glob.glob(f"{CONFIG_DIR}/*.yaml")):
+        name = os.path.splitext(os.path.basename(path))[0]
+        with open(path) as f:
+            config = yaml.safe_load(f)
+
+        stage_names = config.get("stage_names")
+        class_labels = {str(i): label for i, label in enumerate(stage_names)} if stage_names else None
+
+        infos.append(
+            UseCaseInfo(
+                name=name,
+                display_name=config.get("display_name", name),
+                description=" ".join(config.get("description", "").split()),
+                entity=config.get("entity", "unknown"),
+                label_column=config.get("label_column", "unknown"),
+                class_labels=class_labels,
+            )
+        )
+    return infos
 
 
 @app.get("/health")

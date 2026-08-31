@@ -53,4 +53,20 @@ describe("Leaderboard", () => {
     expect(onSelect).toHaveBeenCalledTimes(1);
     expect(onSelect).toHaveBeenCalledWith(entries[1]);
   });
+
+  it("shows the raw predicted_class value when no classLabel prop is given", () => {
+    render(<Leaderboard entries={entries} onSelect={() => {}} />);
+    expect(screen.getByText("ACC-1").closest("tr")).toHaveTextContent("1");
+  });
+
+  it("maps predicted_class through classLabel when given (e.g. Funnel Stage's named classes)", () => {
+    const stageNames: Record<string, string> = { "0": "MQL", "1": "SQL" };
+    render(
+      <Leaderboard entries={entries} onSelect={() => {}} classLabel={(c) => stageNames[c] ?? c} />
+    );
+
+    const firstDataRow = screen.getAllByRole("row")[1];
+    const predictedCell = within(firstDataRow).getAllByRole("cell")[3];
+    expect(predictedCell).toHaveTextContent("SQL"); // entries[0].predicted_class === "1"
+  });
 });

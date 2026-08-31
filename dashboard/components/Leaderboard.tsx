@@ -4,9 +4,10 @@ interface Props {
   entries: LeaderboardEntry[];
   selectedId?: string;
   onSelect: (entry: LeaderboardEntry) => void;
+  classLabel?: (cls: string) => string;
 }
 
-export default function Leaderboard({ entries, selectedId, onSelect }: Props) {
+export default function Leaderboard({ entries, selectedId, onSelect, classLabel = (c) => c }: Props) {
   return (
     <table className="leaderboard">
       <thead>
@@ -27,7 +28,7 @@ export default function Leaderboard({ entries, selectedId, onSelect }: Props) {
             <td>{i + 1}</td>
             <td>{entry.id}</td>
             <td>{entry.score_pct.toFixed(1)}%</td>
-            <td>{entry.predicted_class}</td>
+            <td>{classLabel(entry.predicted_class)}</td>
           </tr>
         ))}
       </tbody>

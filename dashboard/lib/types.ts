@@ -3,6 +3,15 @@ export interface Factor {
   impact: number;
 }
 
+export interface UseCaseInfo {
+  name: string;
+  display_name: string;
+  description: string;
+  entity: string;
+  label_column: string;
+  class_labels: Record<string, string> | null;
+}
+
 export interface LeaderboardEntry {
   id: string;
   score_pct: number;

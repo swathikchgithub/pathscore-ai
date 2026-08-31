@@ -1,4 +1,5 @@
 use_case: gtm_fit
+display_name: GTM Fit
 description: >
   Static fit score for an account against the ideal customer profile, from
   firmographics alone. Unlike PTB Prospect, this ignores trigger events and
