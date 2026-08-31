@@ -1,0 +1,38 @@
+use_case: gtm_fit
+description: >
+  Static fit score for an account against the ideal customer profile, from
+  firmographics alone. Unlike PTB Prospect, this ignores trigger events and
+  contact-level engagement -- it's the upstream screen for "is this account
+  worth pursuing at all", before any buying signal exists.
+
+entity: account
+label_column: gtm_fit_label
+id_column: account_id
+sample_data: data/synthetic/accounts.csv
+
+feature_columns:
+  - industry              # categorical
+  - company_size          # categorical
+  - existing_customer
+
+categorical_columns:
+  - industry
+  - company_size
+
+model:
+  type: lightgbm
+  params:
+    n_estimators: 150
+    max_depth: 3
+    learning_rate: 0.08
+    num_leaves: 15
+    objective: binary
+
+calibration:
+  method: platt  # platt | isotonic
+
+retrain:
+  cadence: weekly
+  min_new_labels: 100
+  drift_check_metric: auc_roc
+  drift_threshold: 0.03

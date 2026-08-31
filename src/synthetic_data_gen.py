@@ -50,6 +50,13 @@ INDUSTRY_FIT_WEIGHT = {
 FUNNEL_STAGES = ["MQL", "SQL", "Opportunity", "Closed-Won"]
 FUNNEL_CUTPOINTS = [0.35, 0.55, 0.75]
 
+# GTM Fit label: a static screen on firmographics alone -- "is this account
+# worth pursuing at all" -- independent of any trigger event or contact-level
+# engagement, unlike PTB Prospect. Threshold picked from the observed
+# icp_fit_score distribution to land near an even split (~53% positive),
+# not tuned against any downstream metric.
+GTM_FIT_THRESHOLD = 0.65
+
 # Short synthetic email/call snippets per intent_label, standing in for the
 # raw text a real extraction layer would see. Vocabulary is deliberately
 # aligned with MockCortexClient's word lists (src/extraction/intent_extractor.py)
@@ -229,6 +236,10 @@ def compute_ground_truth_labels(accounts: pd.DataFrame, contacts: pd.DataFrame, 
     accounts["account_ptb_label"] = (
         (accounts["any_converted"] == 1) & (accounts["icp_fit_score"] > 0.5)
     ).astype(int)
+
+    # GTM Fit: pure function of an already-computed column, no new rng draw,
+    # so it doesn't perturb any other label above.
+    accounts["gtm_fit_label"] = (accounts["icp_fit_score"] >= GTM_FIT_THRESHOLD).astype(int)
 
     return accounts, contacts
 
