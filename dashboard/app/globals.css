@@ -238,8 +238,39 @@ body {
   }
 }
 
+/* Same var(--accent) as the row's box outline (globals.css above) and the
+   same 0.7s window as detail-flash, so the row you clicked and the text
+   that just updated read as one connected event, not two separate ones. */
+.detail-panel-content h2 {
+  animation: id-color-flash 0.7s ease-out;
+}
+
+@keyframes id-color-flash {
+  0% {
+    color: var(--accent);
+  }
+  100% {
+    color: var(--text);
+  }
+}
+
+.detail-panel-content .score {
+  animation: score-color-flash 0.7s ease-out;
+}
+
+@keyframes score-color-flash {
+  0% {
+    color: var(--accent);
+  }
+  100% {
+    color: var(--muted);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .detail-panel-content {
+  .detail-panel-content,
+  .detail-panel-content h2,
+  .detail-panel-content .score {
     animation: none;
   }
 }
