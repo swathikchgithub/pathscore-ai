@@ -59,6 +59,10 @@ export default function Home() {
   // Falls back to the raw index for use cases with no named classes (every
   // binary use case today) -- only Funnel Stage currently declares stage_names.
   const classLabel = (cls: string) => activeUseCase?.class_labels?.[cls] ?? `class ${cls}`;
+  // score_pct is the one field every use case shares (binary or multi-class),
+  // so it's what drives the detail panel's tier color -- high/low use the
+  // same --positive/--negative tokens as the SHAP bars, mid stays accent.
+  const scoreTier = (pct: number) => (pct >= 66 ? "high" : pct < 33 ? "low" : "mid");
 
   return (
     <main className="page">
@@ -145,7 +149,10 @@ export default function Home() {
             // Re-keyed to the entry's id: a fresh DOM node per selection so
             // the flash animation (globals.css) actually restarts instead
             // of React quietly patching text in an existing node.
-            <div key={selectedEntry.id} className="detail-panel-content">
+            <div
+              key={selectedEntry.id}
+              className={`detail-panel-content tier-${scoreTier(selectedEntry.score_pct)}`}
+            >
               <h2>{selectedEntry.id}</h2>
               <p className="score">
                 {selectedEntry.score_pct.toFixed(1)}% probability &middot; predicted:{" "}

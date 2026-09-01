@@ -229,14 +229,24 @@ body {
   border-radius: 6px;
 }
 
-/* Same var(--accent) as the row's box outline (globals.css above), so the
-   row you clicked and the text stay visibly linked -- the text turns
-   accent-colored and stays that way (not a fade back to the resting
-   color), with a brief opacity pop on change so a re-selection still
-   reads as an event even when the color was already accent. */
+/* The text turns a tier color and stays that way (not a fade back to the
+   resting color), with a brief opacity pop on change so a re-selection
+   still reads as an event even when the tier is unchanged. Tier is set by
+   score_pct (see scoreTier in page.tsx) -- high/low reuse the same
+   --positive/--negative tokens as the SHAP bars below, so "good" and "bad"
+   mean the same thing everywhere on the page; mid keeps the row outline's
+   accent color. */
 .detail-panel-content h2 {
   color: var(--accent);
   animation: id-color-flash 0.3s ease-out;
+}
+
+.detail-panel-content.tier-high h2 {
+  color: var(--positive);
+}
+
+.detail-panel-content.tier-low h2 {
+  color: var(--negative);
 }
 
 @keyframes id-color-flash {
@@ -251,6 +261,14 @@ body {
 .detail-panel-content .score {
   color: var(--accent);
   animation: score-color-flash 0.3s ease-out;
+}
+
+.detail-panel-content.tier-high .score {
+  color: var(--positive);
+}
+
+.detail-panel-content.tier-low .score {
+  color: var(--negative);
 }
 
 @keyframes score-color-flash {
