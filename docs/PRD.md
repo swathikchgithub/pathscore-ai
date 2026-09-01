@@ -74,8 +74,13 @@ not a system with real production users today (see
 
 ## Out of scope (today)
 
-- Real Snowflake/HuggingFace credentials and live inference — mocked by design
-  for local/demo use.
+- Real HuggingFace credentials and live LoRA inference — mocked by design,
+  since no adapter has been trained ([ADR-0002](adr/0002-lora-over-full-finetuning.md)).
+  Snowflake Cortex, by contrast, now has a live account wired up (key-pair
+  auth, verified end-to-end via `src/monitoring/verify_cortex.py` in CI) —
+  local/demo runs still default to the mock unless `SNOWFLAKE_*` is set
+  ([ADR-0006](adr/0006-env-driven-mock-live-clients.md)), but the live path
+  itself is no longer unproven.
 - Multi-tenant auth or per-user RBAC — a single shared API key at most
   ([ADR-0008](adr/0008-api-key-rate-limit-over-full-auth.md)).
 - A real, versioned point-in-time feature store
