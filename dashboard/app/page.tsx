@@ -124,7 +124,11 @@ export default function Home() {
           Labels come from real historical outcomes, not editorial guesses, and an automated check
           blocks any feature that&apos;s secretly a stand-in for the outcome itself before a model
           is ever trained (see leakage_checks.py). This demo runs on synthetic GTM data standing in
-          for a real warehouse — see docs/ below for the full technical design.
+          for a real warehouse — see docs/ below for the full technical design. One input feature,
+          shown as &ldquo;Intent/sentiment score (Snowflake Cortex)&rdquo; when it appears under Top
+          factors, is computed via Snowflake Cortex&apos;s sentiment/intent SQL functions over each
+          contact&apos;s event text — a local mock by default, with the live path verified
+          end-to-end (see ADR-0006).
         </p>
       </details>
 
