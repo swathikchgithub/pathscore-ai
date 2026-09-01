@@ -94,6 +94,58 @@ export default function Home() {
         )}
       </header>
 
+      <section className="story">
+        <p className="story-eyebrow">Why this exists</p>
+        <p className="story-lede">
+          Revenue teams need to know who to prioritize — which contact, which account — and today
+          that&apos;s usually gut feel or a spreadsheet formula nobody fully trusts. PathScore AI is
+          one shared, config-driven scoring pipeline that answers that with a calibrated probability
+          and the exact reasons behind it, across four different GTM questions, using the same
+          codebase for all of them.
+        </p>
+        <div className="story-table-wrap">
+          <table className="story-table">
+            <thead>
+              <tr>
+                <th>What we built</th>
+                <th>Status</th>
+                <th>Proof</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>One pipeline, four GTM use cases</td>
+                <td>
+                  <span className="status-pill status-live">Live</span>
+                </td>
+                <td>New use case = one YAML config file, zero new code</td>
+              </tr>
+              <tr>
+                <td>Every prediction explains itself</td>
+                <td>
+                  <span className="status-pill status-live">Live</span>
+                </td>
+                <td>SHAP top factors ship with every score, not a black box</td>
+              </tr>
+              <tr>
+                <td>Snowflake Cortex integration</td>
+                <td>
+                  <span className="status-pill status-live">Live &amp; verified</span>
+                </td>
+                <td>CI hits real Cortex on every run and gets a real result back</td>
+              </tr>
+              <tr>
+                <td>Full production-scale live extraction</td>
+                <td>
+                  <span className="status-pill status-planned">Planned</span>
+                </td>
+                <td>Needs batched Cortex calls before running at full event volume</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <details className="how-it-works" open>
         <summary>How does scoring work?</summary>
         <ol>
