@@ -154,6 +154,8 @@ def _build_connection_params() -> dict:
         "warehouse": os.environ["SNOWFLAKE_WAREHOUSE"],
         "database": os.environ["SNOWFLAKE_DATABASE"],
         "schema": os.environ["SNOWFLAKE_SCHEMA"],
+        "login_timeout": 30,
+        "network_timeout": 30,
     }
     if os.getenv("SNOWFLAKE_ROLE"):
         connection_params["role"] = os.environ["SNOWFLAKE_ROLE"]
